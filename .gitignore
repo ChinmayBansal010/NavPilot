@@ -1,0 +1,41 @@
+# Android
+.gradle/
+.idea/
+build/
+*/build/
+local.properties
+
+# Android Studio
+*.iml
+
+# Generated
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Kotlin
+.kotlin/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ML
+*.pt
+*.pth
+*.onnx
+*.tflite
+*.h5
+
+# Dataset
+ml/datasets/raw/
+ml/datasets/io-vnbd/
+
+# Backend
+backend/.env
+
+# OS
+.DS_Store
+Thumbs.db
