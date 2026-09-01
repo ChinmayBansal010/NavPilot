@@ -1,17 +1,17 @@
-# Android
-.gradle/
-.idea/
-build/
-*/build/
-local.properties
-
 # Android Studio
+.idea/
 *.iml
 
-# Generated
-captures/
+# Gradle
+.gradle/
+build/
+*/build/
+
+# Android
+local.properties
 .externalNativeBuild/
 .cxx/
+captures/
 
 # Kotlin
 .kotlin/
@@ -21,20 +21,22 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+env/
 
-# ML
+# Environment
+.env
+.env.*
+
+# ML models
 *.pt
 *.pth
 *.onnx
 *.tflite
 *.h5
 
-# Dataset
+# Datasets
 ml/datasets/raw/
 ml/datasets/io-vnbd/
-
-# Backend
-backend/.env
 
 # OS
 .DS_Store
