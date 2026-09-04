@@ -3,45 +3,26 @@ package com.navpilot
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.navpilot.ui.theme.NavPilotTheme
+import com.navpilot.core.ui.theme.NavPilotTheme
+import org.osmdroid.config.Configuration
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        runCatching {
+            Configuration.getInstance().load(
+                applicationContext,
+                applicationContext.getSharedPreferences("osmdroid", MODE_PRIVATE)
+            )
+            Configuration.getInstance().userAgentValue = packageName
+        }
+
         setContent {
             NavPilotTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                NavPilotApp()
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    NavPilotTheme {
-        Greeting("Android")
     }
 }
