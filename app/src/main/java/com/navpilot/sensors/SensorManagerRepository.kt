@@ -5,6 +5,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Handler
+import android.os.Looper
 import com.navpilot.domain.model.ImuFrame
 import com.navpilot.domain.model.ImuSample
 import com.navpilot.domain.model.SensorSample
@@ -22,6 +24,7 @@ class SensorManagerRepository(
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     val status: SensorStatus
         get() = SensorStatus(
@@ -84,15 +87,20 @@ class SensorManagerRepository(
 
         val activeSensors = listOfNotNull(accelerometer, gyroscope, magnetometer)
         activeSensors.forEach { sensor ->
-            sensorManager.registerListener(
-                listener,
-                sensor,
-                SensorManager.SENSOR_DELAY_FASTEST
-            )
+            runCatching {
+                sensorManager.registerListener(
+                    listener,
+                    sensor,
+                    SensorManager.SENSOR_DELAY_GAME,
+                    mainHandler
+                )
+            }
         }
 
         awaitClose {
-            sensorManager.unregisterListener(listener)
+            runCatching {
+                sensorManager.unregisterListener(listener)
+            }
         }
     }
 
@@ -130,15 +138,20 @@ class SensorManagerRepository(
         }
 
         listOfNotNull(accelerometer, gyroscope, magnetometer).forEach { sensor ->
-            sensorManager.registerListener(
-                listener,
-                sensor,
-                SensorManager.SENSOR_DELAY_FASTEST
-            )
+            runCatching {
+                sensorManager.registerListener(
+                    listener,
+                    sensor,
+                    SensorManager.SENSOR_DELAY_GAME,
+                    mainHandler
+                )
+            }
         }
 
         awaitClose {
-            sensorManager.unregisterListener(listener)
+            runCatching {
+                sensorManager.unregisterListener(listener)
+            }
         }
     }
 }

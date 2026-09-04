@@ -23,7 +23,6 @@ __pycache__/
 venv/
 env/
 
-# Environment
 .env
 .env.*
 

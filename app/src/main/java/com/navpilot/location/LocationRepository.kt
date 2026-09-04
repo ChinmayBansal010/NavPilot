@@ -43,24 +43,27 @@ class LocationRepository(
         started = true
 
         scope.launch {
-            runCatching {
+            try {
                 provider.locationUpdates()
-                    .catch { }
+                    .catch { _gnssAvailability.value = GnssAvailability.LOST }
                     .collect { sample ->
                         _latestGnssSample.value = sample
                         _gnssAvailability.value = classify(sample, _satelliteInfo.value)
                     }
+            } catch (_: Exception) {
+                _gnssAvailability.value = GnssAvailability.LOST
             }
         }
 
         scope.launch {
-            runCatching {
+            try {
                 provider.satelliteStatus()
                     .catch { }
                     .collect { info ->
                         _satelliteInfo.value = info
                         _gnssAvailability.value = classify(_latestGnssSample.value, info)
                     }
+            } catch (_: Exception) {
             }
         }
 

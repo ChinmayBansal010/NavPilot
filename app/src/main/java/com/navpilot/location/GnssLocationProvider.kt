@@ -23,13 +23,16 @@ class GnssLocationProvider(
 ) {
     private val locationManager =
         context.applicationContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    private val mainHandler = android.os.Handler(Looper.getMainLooper())
 
     fun hasLocationPermission(): Boolean =
-        hasFineLocationPermission() ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
+        hasFineLocationPermission() || hasCoarseLocationPermission()
+
+    private fun hasCoarseLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
 
     private fun hasFineLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(
@@ -55,33 +58,39 @@ class GnssLocationProvider(
             override fun onProviderDisabled(provider: String) = Unit
         }
 
-        runCatching {
-            val providers = if (hasFineLocationPermission()) {
-                listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-            } else {
-                listOf(LocationManager.NETWORK_PROVIDER)
-            }
+        val providers = mutableListOf<String>()
+        if (hasFineLocationPermission()) {
+            providers.add(LocationManager.GPS_PROVIDER)
+            providers.add(LocationManager.NETWORK_PROVIDER)
+        } else if (hasCoarseLocationPermission()) {
+            providers.add(LocationManager.NETWORK_PROVIDER)
+        }
 
-            providers
-                .filter { locationManager.isProviderEnabled(it) }
-                .forEach { provider ->
-                    runCatching {
-                        locationManager.requestLocationUpdates(
-                            provider,
-                            1_000L,
-                            0f,
-                            listener,
-                            Looper.getMainLooper()
-                        )
-                        locationManager.getLastKnownLocation(provider)?.let { trySend(it.toGnssSample()) }
+        providers.forEach { providerName ->
+            try {
+                if (locationManager.isProviderEnabled(providerName)) {
+                    locationManager.requestLocationUpdates(
+                        providerName,
+                        1_000L,
+                        0f,
+                        listener,
+                        Looper.getMainLooper()
+                    )
+                    val lastKnown = locationManager.getLastKnownLocation(providerName)
+                    if (lastKnown != null) {
+                        trySend(lastKnown.toGnssSample())
                     }
                 }
-        }.onFailure {
-            close()
+            } catch (_: SecurityException) {
+            } catch (_: Exception) {
+            }
         }
 
         awaitClose {
-            runCatching { locationManager.removeUpdates(listener) }
+            try {
+                locationManager.removeUpdates(listener)
+            } catch (_: Exception) {
+            }
         }
     }.catch { }
 
@@ -94,7 +103,7 @@ class GnssLocationProvider(
 
         val callback = object : GnssStatus.Callback() {
             override fun onSatelliteStatusChanged(status: GnssStatus) {
-                runCatching {
+                try {
                     var usedInFix = 0
                     for (index in 0 until status.satelliteCount) {
                         if (status.usedInFix(index)) {
@@ -107,18 +116,26 @@ class GnssLocationProvider(
                             usedInFix = usedInFix
                         )
                     )
+                } catch (_: Exception) {
                 }
             }
         }
 
-        runCatching {
-            locationManager.registerGnssStatusCallback(context.mainExecutor, callback)
-        }.onFailure {
+        try {
+            locationManager.registerGnssStatusCallback(callback, mainHandler)
+        } catch (_: SecurityException) {
             close()
+            return@callbackFlow
+        } catch (_: Exception) {
+            close()
+            return@callbackFlow
         }
 
         awaitClose {
-            runCatching { locationManager.unregisterGnssStatusCallback(callback) }
+            try {
+                locationManager.unregisterGnssStatusCallback(callback)
+            } catch (_: Exception) {
+            }
         }
     }.catch { }
 }
