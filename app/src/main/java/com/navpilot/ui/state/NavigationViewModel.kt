@@ -18,6 +18,8 @@ import com.navpilot.domain.model.Velocity
 import com.navpilot.location.GnssLocationProvider
 import com.navpilot.location.LocationRepository
 import com.navpilot.navigation_engine.DeadReckoningEngine
+import com.navpilot.navigation_engine.ExtendedKalmanPositionFusionEngine
+import com.navpilot.navigation_engine.MapMatchingEngine
 import com.navpilot.navigation_engine.VehicleAlignmentEngine
 import com.navpilot.sensors.SensorManagerRepository
 import kotlinx.coroutines.Job
@@ -46,8 +48,11 @@ class NavigationViewModel(
 
     private val deadReckoningEngine = DeadReckoningEngine()
     private val vehicleAlignmentEngine = VehicleAlignmentEngine()
+    private val positionFusionEngine = ExtendedKalmanPositionFusionEngine(deadReckoningEngine)
+    private val mapMatchingEngine = MapMatchingEngine()
 
     private var userInteractionJob: Job? = null
+    private var latestImuFrame = ImuFrame()
 
     private val _state = MutableStateFlow(
         NavigationState(
@@ -93,7 +98,7 @@ class NavigationViewModel(
     }
 
     fun startNavigation(destinationName: String, destinationPosition: GeoPosition) {
-        val currentPos = _state.value.position ?: GeoPosition(12.9716, 77.5946)
+        val currentPos = _state.value.position ?: GeoPosition(28.6315, 77.2167)
 
         viewModelScope.launch {
             val route = navigationRepository.calculateRoute(currentPos, destinationPosition, destinationName)
@@ -191,26 +196,25 @@ class NavigationViewModel(
                         magnetometer = SensorSample(sample.magnetometerX, sample.magnetometerY, sample.magnetometerZ, sample.timestampNanos),
                         timestampNanos = sample.timestampNanos
                     )
+                    latestImuFrame = imuFrame
 
                     val orientation = vehicleAlignmentEngine.update(imuFrame)
 
                     if (_state.value.gnssStatus == GnssAvailability.LOST) {
-                        val deadReckoningEstimate = deadReckoningEngine.update(
-                            frame = imuFrame,
+                        val fusedEstimate = positionFusionEngine.update(
+                            gnssPosition = null,
+                            gnssVelocity = Velocity(_state.value.speedMetersPerSecond, _state.value.headingDegrees),
                             gnssAvailability = GnssAvailability.LOST,
-                            latestKnownPosition = _state.value.position,
-                            latestKnownVelocity = Velocity(_state.value.speedMetersPerSecond, _state.value.headingDegrees),
+                            imuFrame = imuFrame,
                             orientation = orientation
                         )
 
-                        deadReckoningEstimate.position?.let { pos ->
-                            updateVehiclePositionOnRoute(
-                                position = pos,
-                                speed = deadReckoningEstimate.velocity.speedMetersPerSecond,
-                                heading = deadReckoningEstimate.headingDegrees ?: 0f,
-                                confidence = deadReckoningEstimate.confidence
-                            )
-                        }
+                        applyNavigationPosition(
+                            position = fusedEstimate.position,
+                            speed = fusedEstimate.velocity.speedMetersPerSecond,
+                            heading = fusedEstimate.headingDegrees ?: _state.value.headingDegrees ?: 0f,
+                            confidence = fusedEstimate.confidence
+                        )
                     } else {
                         _state.update {
                             it.copy(
@@ -225,43 +229,97 @@ class NavigationViewModel(
     }
 
     private fun updateLocationState(sample: GnssSample) {
-        val newPos = GeoPosition(
+        val gnssPosition = GeoPosition(
             latitude = sample.latitude,
             longitude = sample.longitude,
             altitudeMeters = sample.altitudeMeters,
             horizontalAccuracyMeters = sample.accuracyMeters,
             timestampMillis = sample.timestampMillis
         )
-        updateVehiclePositionOnRoute(newPos, sample.speedMetersPerSecond, sample.bearingDegrees ?: _state.value.headingDegrees ?: 0f, 0.9f)
+        val orientation = vehicleAlignmentEngine.update(latestImuFrame)
+        val fusedEstimate = positionFusionEngine.update(
+            gnssPosition = gnssPosition,
+            gnssVelocity = Velocity(sample.speedMetersPerSecond, sample.bearingDegrees),
+            gnssAvailability = _state.value.gnssStatus,
+            imuFrame = latestImuFrame,
+            orientation = orientation
+        )
+
+        applyNavigationPosition(
+            position = fusedEstimate.position ?: gnssPosition,
+            speed = fusedEstimate.velocity.speedMetersPerSecond,
+            heading = fusedEstimate.headingDegrees ?: sample.bearingDegrees ?: _state.value.headingDegrees ?: 0f,
+            confidence = fusedEstimate.confidence.coerceAtLeast(0.65f)
+        )
+    }
+
+    private fun applyNavigationPosition(
+        position: GeoPosition?,
+        speed: Float,
+        heading: Float,
+        confidence: Float
+    ) {
+        if (position == null) return
+        val matched = mapMatchingEngine.match(
+            estimatedPosition = position,
+            headingDegrees = heading,
+            speedMetersPerSecond = speed,
+            roadCandidates = emptyList()
+        )
+        val navigationPosition = matched?.position ?: position
+        updateVehiclePositionOnRoute(
+            position = navigationPosition,
+            speed = speed,
+            heading = matched?.headingDegrees ?: heading,
+            confidence = matched?.confidence ?: confidence,
+            matchedRoadName = matched?.matchedRoadSegment?.roadClass ?: _state.value.currentRoadName
+        )
     }
 
     private fun updateVehiclePositionOnRoute(
         position: GeoPosition,
         speed: Float,
         heading: Float,
-        confidence: Float
+        confidence: Float,
+        matchedRoadName: String? = null
     ) {
         _state.update { currentState ->
             val route = currentState.currentRoute
             if (currentState.isNavigating && route != null && route.segments.isNotEmpty()) {
-                var segIdx = currentState.currentSegmentIndex
+                var segIdx = currentState.currentSegmentIndex.coerceIn(0, route.segments.lastIndex)
                 var seg = route.segments[segIdx]
-                var distToSegEnd = calculateDistanceMeters(position, seg.coordinates.lastOrNull() ?: route.destinationPosition)
+                val distanceToRoute = distanceToRouteMeters(position, route.orderedCoordinates)
+                val shouldReroute = distanceToRoute > 90.0 && !currentState.isRerouting
+                if (shouldReroute) {
+                    requestReroute(position, currentState.destinationName, currentState.destinationPosition)
+                }
+
+                var distToSegEnd = distanceAlongRouteFromPosition(position, seg.coordinates).toFloat()
 
                 if (distToSegEnd < 30.0 && segIdx < route.segments.lastIndex) {
                     segIdx += 1
                     seg = route.segments[segIdx]
-                    distToSegEnd = calculateDistanceMeters(position, seg.coordinates.lastOrNull() ?: route.destinationPosition)
+                    distToSegEnd = distanceAlongRouteFromPosition(position, seg.coordinates).toFloat()
                 }
 
-                val remainingDist = calculateDistanceMeters(position, route.destinationPosition).toFloat()
+                val remainingDist = route.segments
+                    .drop(segIdx)
+                    .sumOf { segment -> segment.distanceMeters }
+                    .toFloat()
+                    .coerceAtMost(calculateDistanceMeters(position, route.destinationPosition).toFloat() * 1.8f)
                 val arrived = remainingDist < 25f
-                val etaMin = (remainingDist / 500.0).toInt().coerceAtLeast(1)
+                val etaMin = (remainingDist / (speed.coerceAtLeast(8f) * 60f)).toInt().coerceAtLeast(1)
+                val progress = if (route.totalDistanceMeters > 0.0) {
+                    (1f - remainingDist / route.totalDistanceMeters.toFloat()).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
 
                 currentState.copy(
                     position = position,
                     speedMetersPerSecond = speed,
                     headingDegrees = heading,
+                    accuracyMeters = position.horizontalAccuracyMeters,
                     currentSegmentIndex = segIdx,
                     currentTurnType = seg.turnType,
                     upcomingTurn = seg.instruction,
@@ -269,6 +327,10 @@ class NavigationViewModel(
                     distanceRemainingMeters = remainingDist,
                     etaMinutes = etaMin,
                     confidence = confidence,
+                    mapMatchConfidence = confidence,
+                    currentRoadName = matchedRoadName ?: seg.streetName,
+                    routeProgress = progress,
+                    isRerouting = shouldReroute,
                     isNavigating = !arrived,
                     isArrived = arrived || currentState.isArrived,
                     lastUpdatedMillis = System.currentTimeMillis()
@@ -278,10 +340,67 @@ class NavigationViewModel(
                     position = position,
                     speedMetersPerSecond = speed,
                     headingDegrees = heading,
+                    accuracyMeters = position.horizontalAccuracyMeters,
+                    confidence = confidence,
+                    currentRoadName = matchedRoadName,
                     lastUpdatedMillis = System.currentTimeMillis()
                 )
             }
         }
+    }
+
+    private fun requestReroute(
+        position: GeoPosition,
+        destinationName: String?,
+        destinationPosition: GeoPosition?
+    ) {
+        if (destinationName == null || destinationPosition == null) return
+        viewModelScope.launch {
+            val route = navigationRepository.calculateRoute(position, destinationPosition, destinationName)
+            val initialSegment = route.segments.firstOrNull()
+            _state.update {
+                it.copy(
+                    currentRoute = route,
+                    currentSegmentIndex = 0,
+                    currentTurnType = initialSegment?.turnType ?: TurnType.START,
+                    routePoints = route.orderedCoordinates,
+                    upcomingTurn = initialSegment?.instruction ?: "Continue toward $destinationName",
+                    turnDistanceMeters = initialSegment?.distanceMeters?.toFloat() ?: 0f,
+                    distanceRemainingMeters = route.totalDistanceMeters.toFloat(),
+                    etaMinutes = (route.estimatedTravelTimeSeconds / 60L).toInt().coerceAtLeast(1),
+                    isRerouting = false,
+                    routeProgress = 0f
+                )
+            }
+        }
+    }
+
+    private fun distanceAlongRouteFromPosition(position: GeoPosition, routePoints: List<GeoPosition>): Double {
+        val nearestIndex = nearestRoutePointIndex(position, routePoints)
+        if (nearestIndex == -1) return 0.0
+        return routePoints
+            .drop(nearestIndex)
+            .windowed(2)
+            .sumOf { calculateDistanceMeters(it[0], it[1]) }
+    }
+
+    private fun distanceToRouteMeters(position: GeoPosition, routePoints: List<GeoPosition>): Double {
+        if (routePoints.isEmpty()) return Double.POSITIVE_INFINITY
+        return routePoints.minOf { calculateDistanceMeters(position, it) }
+    }
+
+    private fun nearestRoutePointIndex(position: GeoPosition, routePoints: List<GeoPosition>): Int {
+        if (routePoints.isEmpty()) return -1
+        var bestIndex = 0
+        var bestDistance = Double.POSITIVE_INFINITY
+        routePoints.forEachIndexed { index, routePoint ->
+            val distance = calculateDistanceMeters(position, routePoint)
+            if (distance < bestDistance) {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
     }
 
     private fun calculateDistanceMeters(p1: GeoPosition, p2: GeoPosition): Double {

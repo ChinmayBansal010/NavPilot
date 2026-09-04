@@ -22,8 +22,8 @@ import com.navpilot.presentation.components.SectionTitle
 
 @Composable
 fun OfflineMapsScreen(onBack: () -> Unit) {
-    val regions = listOf("Karnataka" to "142 MB", "Tamil Nadu" to "138 MB", "Maharashtra" to "164 MB", "Delhi NCR" to "98 MB")
-    var saved by remember { mutableStateOf(setOf("Karnataka", "Tamil Nadu")) }
+    val regions = listOf("Delhi NCR" to "98 MB", "Karnataka" to "142 MB", "Tamil Nadu" to "138 MB", "Maharashtra" to "164 MB")
+    var saved by remember { mutableStateOf(setOf("Delhi NCR")) }
     Column(Modifier.fillMaxSize().background(Bg)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) { BackButton(onBack); Text("Offline maps", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = Ink, modifier = Modifier.padding(start = 4.dp)) }
         Column(Modifier.padding(horizontal = 20.dp)) {

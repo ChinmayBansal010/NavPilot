@@ -27,5 +27,5 @@ fun createOsmMapView(context: Context): MapView {
     }
 }
 
-const val DEFAULT_LATITUDE = 28.4595
-const val DEFAULT_LONGITUDE = 77.0266
+const val DEFAULT_LATITUDE = 28.6315
+const val DEFAULT_LONGITUDE = 77.2167

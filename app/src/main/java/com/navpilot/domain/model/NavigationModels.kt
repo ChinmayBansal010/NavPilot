@@ -151,7 +151,10 @@ data class NavigationState(
     val upcomingTurn: String = "Head north",
     val turnDistanceMeters: Float = 0f,
     val isArrived: Boolean = false,
-    val showDeveloperDiagnostics: Boolean = false
+    val showDeveloperDiagnostics: Boolean = false,
+    val currentRoadName: String? = null,
+    val routeProgress: Float = 0f,
+    val isRerouting: Boolean = false
 )
 
 data class SavedPlace(val label: String, val detail: String, val time: String)

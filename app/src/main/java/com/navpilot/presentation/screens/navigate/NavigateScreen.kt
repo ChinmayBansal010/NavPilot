@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOff
@@ -174,22 +173,10 @@ fun NavigateScreen() {
             map = mapView,
             state = state,
             onRecenter = { viewModel.recenterMap() },
-            onToggleDiagnostics = { viewModel.toggleDeveloperDiagnostics(!state.showDeveloperDiagnostics) },
-            showDiagnostics = state.showDeveloperDiagnostics,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 14.dp)
         )
-
-        if (state.showDeveloperDiagnostics) {
-            DeveloperDiagnosticsSheet(
-                state = state,
-                onDismiss = { viewModel.toggleDeveloperDiagnostics(false) },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 180.dp, start = 16.dp, end = 16.dp)
-            )
-        }
 
         if (state.isArrived) {
             ArrivalDialog(
@@ -216,8 +203,14 @@ private fun NavigationInstructionCard(state: NavigationState) {
         TurnType.TURN_RIGHT -> Icons.Default.TurnRight
         TurnType.SLIGHT_LEFT -> Icons.Default.TurnSlightLeft
         TurnType.SLIGHT_RIGHT -> Icons.Default.TurnSlightRight
+        TurnType.SHARP_LEFT -> Icons.Default.TurnLeft
+        TurnType.SHARP_RIGHT -> Icons.Default.TurnRight
+        TurnType.U_TURN -> Icons.Default.RoundaboutRight
+        TurnType.ROUNDABOUT_ENTER -> Icons.Default.RoundaboutRight
+        TurnType.ROUNDABOUT_EXIT -> Icons.Default.RoundaboutRight
         TurnType.ROUNDABOUT -> Icons.Default.RoundaboutRight
         TurnType.ARRIVE -> Icons.Default.Place
+        TurnType.DESTINATION_REACHED -> Icons.Default.Place
     }
 
     Card(
@@ -308,9 +301,9 @@ private fun DestinationSearchCard(onSelectDestination: (String, GeoPosition) -> 
             Spacer(modifier = Modifier.height(12.dp))
 
             val destinations = listOf(
-                Triple("Home (Indiranagar)", GeoPosition(12.9719, 77.6412), Icons.Default.Home),
-                Triple("Work (Whitefield)", GeoPosition(12.9698, 77.7499), Icons.Default.Work),
-                Triple("Koramangala 5th Block", GeoPosition(12.9352, 77.6245), Icons.Default.Star)
+                Triple("India Gate", GeoPosition(28.6129, 77.2295), Icons.Default.Star),
+                Triple("Noida Sector 18", GeoPosition(28.5708, 77.3261), Icons.Default.Work),
+                Triple("Saket", GeoPosition(28.5245, 77.2066), Icons.Default.Home)
             )
 
             destinations.forEachIndexed { index, (name, pos, icon) ->
@@ -424,8 +417,6 @@ private fun MapControls(
     map: MapView?,
     state: NavigationState,
     onRecenter: () -> Unit,
-    onToggleDiagnostics: () -> Unit,
-    showDiagnostics: Boolean,
     modifier: Modifier
 ) {
     Column(
@@ -459,13 +450,6 @@ private fun MapControls(
                 map?.controller?.setZoom((map.zoomLevelDouble - 1.0).coerceAtLeast(3.0))
             }
         )
-
-        MapControlButton(
-            icon = Icons.Default.Code,
-            contentDescription = "Developer Diagnostics",
-            tint = if (showDiagnostics) Brand else Ink2,
-            onClick = onToggleDiagnostics
-        )
     }
 }
 
@@ -489,67 +473,6 @@ private fun MapControlButton(
                 tint = tint
             )
         }
-    }
-}
-
-@Composable
-private fun DeveloperDiagnosticsSheet(
-    state: NavigationState,
-    onDismiss: () -> Unit,
-    modifier: Modifier
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = AppSurface,
-        shadowElevation = 12.dp
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Developer Diagnostics",
-                    color = Ink,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Ink3)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DiagnosticMetric("Pipeline", state.navigationMode.label, Modifier.weight(1f))
-                DiagnosticMetric("Satellites", "${state.satelliteInfo.usedInFix}/${state.satelliteInfo.visibleSatellites}", Modifier.weight(1f))
-                DiagnosticMetric("Accuracy", state.accuracyMeters?.let { "${it.toInt()}m" } ?: "--", Modifier.weight(1f))
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DiagnosticMetric("IMU Status", if (state.sensorStatus.isImuReady) "Ready" else "Waiting", Modifier.weight(1f))
-                DiagnosticMetric("Motion", state.motionState.label, Modifier.weight(1f))
-                DiagnosticMetric("Confidence", "${(state.confidence * 100f).toInt()}%", Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiagnosticMetric(label: String, value: String, modifier: Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFFF1F3F5))
-            .padding(8.dp)
-    ) {
-        Text(text = label, color = Ink3, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-        Text(text = value, color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -583,11 +506,20 @@ private fun NavigationBottomPanel(
                         )
                         val distKm = state.distanceRemainingMeters / 1000f
                         Text(
-                            text = "${state.etaMinutes} min · ${String.format(Locale.ROOT, "%.1f km", distKm)} remaining",
+                            text = "${state.etaMinutes} min · ${String.format(Locale.ROOT, "%.1f km", distKm)} · ${state.currentRoadName ?: "Route"}",
                             color = Ink2,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(top = 2.dp)
                         )
+                        if (state.isRerouting) {
+                            Text(
+                                text = "Finding a better local route...",
+                                color = Warning,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                        }
                     }
 
                     Button(
@@ -620,7 +552,7 @@ private fun NavigationBottomPanel(
 
                     Button(
                         onClick = {
-                            onStartNavigation("Indiranagar", GeoPosition(12.9719, 77.6412))
+                            onStartNavigation("India Gate", GeoPosition(28.6129, 77.2295))
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Brand),
                         shape = RoundedCornerShape(14.dp)
