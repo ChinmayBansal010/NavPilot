@@ -1,5 +1,10 @@
 package com.navpilot.domain.model
 
+import androidx.compose.ui.graphics.Color
+import com.navpilot.core.ui.theme.Brand
+import com.navpilot.core.ui.theme.Ink3
+import com.navpilot.core.ui.theme.Success
+
 enum class NavigationMode(val label: String) {
     INITIALIZING("Initializing"),
     GNSS("GNSS"),
@@ -57,6 +62,19 @@ data class GeoPosition(
     val timestampMillis: Long = System.currentTimeMillis()
 )
 
+data class BoundingBox(
+    val minLat: Double,
+    val maxLat: Double,
+    val minLon: Double,
+    val maxLon: Double
+) {
+    fun contains(pos: GeoPosition): Boolean =
+        pos.latitude in minLat..maxLat && pos.longitude in minLon..maxLon
+
+    val center: GeoPosition
+        get() = GeoPosition((minLat + maxLat) / 2.0, (minLon + maxLon) / 2.0)
+}
+
 data class Velocity(
     val speedMetersPerSecond: Float,
     val bearingDegrees: Float? = null
@@ -106,8 +124,90 @@ data class NavigationEstimate(
     val velocity: Velocity = Velocity(0f),
     val headingDegrees: Float? = null,
     val confidence: Float = 0f,
-    val timestampMillis: Long = System.currentTimeMillis()
+    val timestampMillis: Long = System.currentTimeMillis(),
+    val uncertaintyMeters: Float = 50f,
+    val source: PositionEstimateSource = PositionEstimateSource.FUSED
 )
+
+enum class PositionEstimateSource {
+    GNSS,
+    IMU,
+    AI_CORRECTED,
+    MAP_CONSTRAINED,
+    FUSED
+}
+
+data class PositioningDiagnostics(
+    val isGnssDenied: Boolean = false,
+    val deadReckoningActive: Boolean = false,
+    val aiCorrectionActive: Boolean = false,
+    val uncertaintyMeters: Float = 50f,
+    val driftDistanceMeters: Float = 0f,
+    val distanceSinceLastGnssMeters: Float = 0f,
+    val secondsSinceLastGnss: Float = 0f,
+    val deadReckoningConfidence: Float = 0f,
+    val aiCorrectionConfidence: Float = 0f,
+    val mapMatchingConfidence: Float = 0f,
+    val referencePosition: GeoPosition? = null,
+    val estimatedPosition: GeoPosition? = null,
+    val positionErrorMeters: Float? = null,
+    val isWithinDemoTarget: Boolean = true
+)
+
+enum class SearchResultType {
+    COUNTRY,
+    STATE,
+    DISTRICT,
+    CITY,
+    TOWN,
+    VILLAGE,
+    ROAD,
+    ADDRESS,
+    PLACE,
+    MAP_REGION
+}
+
+data class DestinationSearchResult(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val position: GeoPosition,
+    val type: SearchResultType,
+    val regionId: String? = null,
+    val isDownloaded: Boolean = false
+)
+
+enum class OfflineMapStatus {
+    AVAILABLE,
+    DOWNLOADING,
+    DOWNLOADED
+}
+
+data class OfflineMapRegion(
+    val id: String,
+    val name: String,
+    val description: String,
+    val boundingBox: BoundingBox,
+    val type: SearchResultType,
+    val parentRegionId: String? = null,
+    val status: OfflineMapStatus = OfflineMapStatus.AVAILABLE,
+    val downloadProgress: Float = 0f,
+    val localPath: String? = null
+)
+
+fun OfflineMapRegion.statusLabel(): String =
+    when (status) {
+        OfflineMapStatus.AVAILABLE -> "Available for download"
+        OfflineMapStatus.DOWNLOADING -> "Downloading... ${(downloadProgress * 100).toInt()}%"
+        OfflineMapStatus.DOWNLOADED -> "Downloaded"
+    }
+
+fun OfflineMapRegion.statusColor(): Color =
+    when (status) {
+        OfflineMapStatus.AVAILABLE -> Ink3
+        OfflineMapStatus.DOWNLOADING -> Brand
+        OfflineMapStatus.DOWNLOADED -> Success
+    }
 
 data class RoadCandidate(
     val id: String,
@@ -154,7 +254,16 @@ data class NavigationState(
     val showDeveloperDiagnostics: Boolean = false,
     val currentRoadName: String? = null,
     val routeProgress: Float = 0f,
-    val isRerouting: Boolean = false
+    val isRerouting: Boolean = false,
+    val isRouteLoading: Boolean = false,
+    val routeErrorMessage: String? = null,
+    val routeDataSource: RouteDataSource? = null,
+    val positioningDiagnostics: PositioningDiagnostics = PositioningDiagnostics(),
+    val searchQuery: String = "",
+    val searchResults: List<DestinationSearchResult> = emptyList(),
+    val selectedDestination: DestinationSearchResult? = null,
+    val offlineMapRegions: List<OfflineMapRegion> = emptyList(),
+    val isDemoRunning: Boolean = false
 )
 
 data class SavedPlace(val label: String, val detail: String, val time: String)

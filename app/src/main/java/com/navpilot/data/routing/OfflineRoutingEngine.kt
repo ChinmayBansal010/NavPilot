@@ -8,6 +8,7 @@ import com.navpilot.domain.model.RoadNetwork
 import com.navpilot.domain.model.RoadNode
 import com.navpilot.domain.model.Route
 import com.navpilot.domain.model.RouteCostMode
+import com.navpilot.domain.model.RouteDataSource
 import com.navpilot.domain.model.RouteSegment
 import com.navpilot.domain.model.RouteStep
 import com.navpilot.domain.model.RoutingProfile
@@ -21,7 +22,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 class OfflineRoutingEngine(
-    private val roadNetwork: RoadNetwork = DemoDelhiRoadNetwork.create(),
+    private val roadNetwork: RoadNetwork = BundledDelhiNcrRoadNetwork.create(),
     private val router: HierarchicalRoutePlanner = ContractionHierarchyRoutePlanner(roadNetwork)
 ) : RoutingEngine {
 
@@ -47,10 +48,20 @@ class OfflineRoutingEngine(
         val destinationNode = roadNetwork.nearestNode(destination)
         val path = router.findRoute(originNode.id, destinationNode.id, profile)
         val routeEdges = path.flatMap { expandShortcut(it, roadNetwork) }
+        val routeOrigin = if (calculateDistanceMeters(origin, originNode.position) <= LOCAL_ACCESS_CONNECTOR_LIMIT_METERS) {
+            origin
+        } else {
+            originNode.position
+        }
+        val routeDestination = if (calculateDistanceMeters(destination, destinationNode.position) <= LOCAL_ACCESS_CONNECTOR_LIMIT_METERS) {
+            destination
+        } else {
+            destinationNode.position
+        }
 
         val edgeSegments = buildRouteSegments(
-            origin = origin,
-            destination = destination,
+            origin = routeOrigin,
+            destination = routeDestination,
             destinationName = destinationName,
             routeEdges = routeEdges,
             profile = profile
@@ -72,7 +83,8 @@ class OfflineRoutingEngine(
             segments = edgeSegments,
             orderedCoordinates = orderedCoordinates,
             steps = steps,
-            profile = profile
+            profile = profile,
+            dataSource = RouteDataSource.OFFLINE_BUNDLED
         )
     }
 
@@ -120,14 +132,12 @@ class OfflineRoutingEngine(
 
             if (shouldStartNewSegment && currentEdges.isNotEmpty()) {
                 segments += createRouteSegment(
-                    edges = currentEdges,
                     roadName = currentRoad,
                     roadClass = currentClass,
                     points = currentPoints,
                     turnType = currentTurn,
                     isFinal = false,
-                    destinationName = destinationName,
-                    profile = profile
+                    destinationName = destinationName
                 )
                 currentEdges = mutableListOf()
                 currentPoints = mutableListOf(currentPoints.last())
@@ -152,14 +162,12 @@ class OfflineRoutingEngine(
 
         if (currentEdges.isNotEmpty()) {
             segments += createRouteSegment(
-                edges = currentEdges,
                 roadName = currentRoad,
                 roadClass = currentClass,
                 points = currentPoints,
                 turnType = if (segments.isEmpty()) TurnType.START else currentTurn,
                 isFinal = true,
-                destinationName = destinationName,
-                profile = profile
+                destinationName = destinationName
             )
         }
 
@@ -167,14 +175,12 @@ class OfflineRoutingEngine(
     }
 
     private fun createRouteSegment(
-        edges: List<RoadEdge>,
         roadName: String,
         roadClass: RoadClass,
         points: List<GeoPosition>,
         turnType: TurnType,
         isFinal: Boolean,
-        destinationName: String,
-        profile: RoutingProfile
+        destinationName: String
     ): RouteSegment {
         val distance = points.windowed(2).sumOf { calculateDistanceMeters(it[0], it[1]) }
         val duration = estimateDurationSeconds(distance, roadClass)
@@ -438,7 +444,7 @@ private class ContractedRoadNetwork(
     }
 }
 
-object DemoDelhiRoadNetwork {
+object BundledDelhiNcrRoadNetwork {
     fun create(): RoadNetwork {
         val nodes = listOf(
             node(1, "Connaught Place", 28.6315, 77.2167, 9),
@@ -464,37 +470,112 @@ object DemoDelhiRoadNetwork {
         ).associateBy { it.id }
 
         val edgeSpecs = listOf(
-            spec(1, 4, "Barakhamba Road", RoadClass.PRIMARY, 50),
-            spec(4, 2, "Tilak Marg", RoadClass.PRIMARY, 45),
-            spec(4, 3, "Vikas Marg", RoadClass.PRIMARY, 45),
-            spec(3, 10, "Delhi Meerut Expressway Link", RoadClass.TRUNK, 65),
-            spec(10, 11, "Noida Link Road", RoadClass.PRIMARY, 55),
-            spec(11, 17, "Noida Sector Road", RoadClass.SECONDARY, 40),
-            spec(2, 18, "Mathura Road", RoadClass.PRIMARY, 50),
-            spec(18, 5, "Lala Lajpat Rai Marg", RoadClass.PRIMARY, 45),
-            spec(5, 9, "Outer Ring Road", RoadClass.TRUNK, 60),
-            spec(9, 8, "Press Enclave Road", RoadClass.SECONDARY, 35),
-            spec(8, 7, "Aurobindo Marg", RoadClass.SECONDARY, 35),
-            spec(7, 6, "Sri Aurobindo Marg", RoadClass.PRIMARY, 45),
-            spec(6, 19, "Ring Road", RoadClass.TRUNK, 60),
-            spec(19, 20, "NH 48", RoadClass.TRUNK, 65),
-            spec(19, 14, "Ring Road", RoadClass.TRUNK, 60),
-            spec(14, 13, "Najafgarh Road", RoadClass.PRIMARY, 45),
-            spec(13, 12, "Dwarka Road", RoadClass.PRIMARY, 45),
-            spec(14, 15, "Pusa Road", RoadClass.PRIMARY, 45),
-            spec(15, 1, "Panchkuian Road", RoadClass.PRIMARY, 45),
-            spec(1, 16, "Bhavbhuti Marg", RoadClass.PRIMARY, 45),
-            spec(16, 3, "Mahatma Gandhi Marg", RoadClass.TRUNK, 55),
-            spec(6, 5, "Ring Road", RoadClass.TRUNK, 55),
-            spec(5, 18, "Ring Road", RoadClass.TRUNK, 55),
-            spec(2, 6, "Safdarjung Road", RoadClass.PRIMARY, 45),
-            spec(3, 18, "Ring Road", RoadClass.TRUNK, 55)
+            spec(
+                1, 4, "Barakhamba Road", RoadClass.PRIMARY, 50,
+                road(28.6315 to 77.2167, 28.6309 to 77.2202, 28.6301 to 77.2245, 28.6288 to 77.2298, 28.6256 to 77.2342)
+            ),
+            spec(
+                4, 2, "Tilak Marg", RoadClass.PRIMARY, 45,
+                road(28.6256 to 77.2342, 28.6237 to 77.2335, 28.6206 to 77.2324, 28.6173 to 77.2311, 28.6145 to 77.2301, 28.6129 to 77.2295)
+            ),
+            spec(
+                4, 3, "Vikas Marg", RoadClass.PRIMARY, 45,
+                road(28.6256 to 77.2342, 28.6260 to 77.2375, 28.6265 to 77.2408, 28.6273 to 77.2441, 28.6283 to 77.2473)
+            ),
+            spec(
+                3, 10, "Delhi Meerut Expressway Link", RoadClass.TRUNK, 65,
+                road(28.6283 to 77.2473, 28.6268 to 77.2520, 28.6240 to 77.2582, 28.6204 to 77.2648, 28.6165 to 77.2711, 28.6127 to 77.2773)
+            ),
+            spec(
+                10, 11, "Noida Link Road", RoadClass.PRIMARY, 55,
+                road(28.6127 to 77.2773, 28.6117 to 77.2815, 28.6105 to 77.2860, 28.6093 to 77.2910, 28.6085 to 77.2956)
+            ),
+            spec(
+                11, 17, "Noida Sector Road", RoadClass.SECONDARY, 40,
+                road(28.6085 to 77.2956, 28.6029 to 77.3018, 28.5965 to 77.3082, 28.5889 to 77.3156, 28.5797 to 77.3228, 28.5708 to 77.3261)
+            ),
+            spec(
+                2, 18, "Mathura Road", RoadClass.PRIMARY, 50,
+                road(28.6129 to 77.2295, 28.6069 to 77.2339, 28.6004 to 77.2391, 28.5930 to 77.2461, 28.5836 to 77.2538, 28.5726 to 77.2606)
+            ),
+            spec(
+                18, 5, "Lala Lajpat Rai Marg", RoadClass.PRIMARY, 45,
+                road(28.5726 to 77.2606, 28.5703 to 77.2571, 28.5684 to 77.2529, 28.5675 to 77.2477, 28.5677 to 77.2433)
+            ),
+            spec(
+                5, 9, "Outer Ring Road", RoadClass.TRUNK, 60,
+                road(28.5677 to 77.2433, 28.5632 to 77.2450, 28.5587 to 77.2472, 28.5537 to 77.2496, 28.5483 to 77.2513)
+            ),
+            spec(
+                9, 8, "Press Enclave Road", RoadClass.SECONDARY, 35,
+                road(28.5483 to 77.2513, 28.5444 to 77.2443, 28.5399 to 77.2356, 28.5348 to 77.2257, 28.5294 to 77.2153, 28.5245 to 77.2066)
+            ),
+            spec(
+                8, 7, "Aurobindo Marg", RoadClass.SECONDARY, 35,
+                road(28.5245 to 77.2066, 28.5300 to 77.2052, 28.5358 to 77.2039, 28.5419 to 77.2020, 28.5494 to 77.2001)
+            ),
+            spec(
+                7, 6, "Sri Aurobindo Marg", RoadClass.PRIMARY, 45,
+                road(28.5494 to 77.2001, 28.5530 to 77.2023, 28.5578 to 77.2053, 28.5627 to 77.2081, 28.5672 to 77.2100)
+            ),
+            spec(
+                6, 19, "Ring Road", RoadClass.TRUNK, 60,
+                road(28.5672 to 77.2100, 28.5705 to 77.2003, 28.5753 to 77.1890, 28.5816 to 77.1778, 28.5877 to 77.1688, 28.5919 to 77.1616)
+            ),
+            spec(
+                19, 20, "NH 48", RoadClass.TRUNK, 65,
+                road(28.5919 to 77.1616, 28.5827 to 77.1544, 28.5734 to 77.1461, 28.5630 to 77.1367, 28.5552 to 77.1273, 28.5488 to 77.1207)
+            ),
+            spec(
+                19, 14, "Ring Road", RoadClass.TRUNK, 60,
+                road(28.5919 to 77.1616, 28.6021 to 77.1535, 28.6144 to 77.1443, 28.6266 to 77.1334, 28.6365 to 77.1244, 28.6425 to 77.1209)
+            ),
+            spec(
+                14, 13, "Najafgarh Road", RoadClass.PRIMARY, 45,
+                road(28.6425 to 77.1209, 28.6391 to 77.1130, 28.6340 to 77.1044, 28.6278 to 77.0952, 28.6219 to 77.0878)
+            ),
+            spec(
+                13, 12, "Dwarka Road", RoadClass.PRIMARY, 45,
+                road(28.6219 to 77.0878, 28.6228 to 77.0769, 28.6225 to 77.0646, 28.6214 to 77.0501, 28.6193 to 77.0333)
+            ),
+            spec(
+                14, 15, "Pusa Road", RoadClass.PRIMARY, 45,
+                road(28.6425 to 77.1209, 28.6450 to 77.1352, 28.6474 to 77.1516, 28.6491 to 77.1704, 28.6510 to 77.1907)
+            ),
+            spec(
+                15, 1, "Panchkuian Road", RoadClass.PRIMARY, 45,
+                road(28.6510 to 77.1907, 28.6471 to 77.1978, 28.6427 to 77.2055, 28.6370 to 77.2116, 28.6315 to 77.2167)
+            ),
+            spec(
+                1, 16, "Bhavbhuti Marg", RoadClass.PRIMARY, 45,
+                road(28.6315 to 77.2167, 28.6392 to 77.2192, 28.6488 to 77.2215, 28.6582 to 77.2246, 28.6676 to 77.2280)
+            ),
+            spec(
+                16, 3, "Mahatma Gandhi Marg", RoadClass.TRUNK, 55,
+                road(28.6676 to 77.2280, 28.6577 to 77.2328, 28.6481 to 77.2380, 28.6386 to 77.2430, 28.6283 to 77.2473)
+            ),
+            spec(
+                6, 5, "Ring Road", RoadClass.TRUNK, 55,
+                road(28.5672 to 77.2100, 28.5684 to 77.2174, 28.5688 to 77.2252, 28.5682 to 77.2342, 28.5677 to 77.2433)
+            ),
+            spec(
+                5, 18, "Ring Road", RoadClass.TRUNK, 55,
+                road(28.5677 to 77.2433, 28.5682 to 77.2477, 28.5694 to 77.2526, 28.5711 to 77.2570, 28.5726 to 77.2606)
+            ),
+            spec(
+                2, 6, "Safdarjung Road", RoadClass.PRIMARY, 45,
+                road(28.6129 to 77.2295, 28.6038 to 77.2255, 28.5940 to 77.2201, 28.5810 to 77.2141, 28.5672 to 77.2100)
+            ),
+            spec(
+                3, 18, "Ring Road", RoadClass.TRUNK, 55,
+                road(28.6283 to 77.2473, 28.6175 to 77.2494, 28.6050 to 77.2530, 28.5902 to 77.2567, 28.5726 to 77.2606)
+            )
         )
 
         var edgeId = 1L
         val directedEdges = edgeSpecs.flatMap { spec ->
-            val forward = edge(edgeId++, spec.from, spec.to, spec.roadName, spec.roadClass, spec.speedKph, nodes)
-            val reverse = edge(edgeId++, spec.to, spec.from, spec.roadName, spec.roadClass, spec.speedKph, nodes)
+            val forward = edge(edgeId++, spec, reverse = false)
+            val reverse = edge(edgeId++, spec, reverse = true)
             listOf(forward, reverse)
         }.associateBy { it.id }
 
@@ -525,29 +606,21 @@ object DemoDelhiRoadNetwork {
         to: Long,
         roadName: String,
         roadClass: RoadClass,
-        speedKph: Int
-    ): EdgeSpec = EdgeSpec(from, to, roadName, roadClass, speedKph)
-
-    private fun edge(
-        id: Long,
-        from: Long,
-        to: Long,
-        roadName: String,
-        roadClass: RoadClass,
         speedKph: Int,
-        nodes: Map<Long, RoadNode>
-    ): RoadEdge {
-        val fromPosition = nodes.getValue(from).position
-        val toPosition = nodes.getValue(to).position
+        geometry: List<GeoPosition>
+    ): EdgeSpec = EdgeSpec(from, to, roadName, roadClass, speedKph, geometry)
+
+    private fun edge(id: Long, spec: EdgeSpec, reverse: Boolean): RoadEdge {
+        val geometry = if (reverse) spec.geometry.asReversed() else spec.geometry
         return RoadEdge(
             id = id,
-            fromNodeId = from,
-            toNodeId = to,
-            distanceMeters = calculateDistanceMeters(fromPosition, toPosition),
-            roadName = roadName,
-            roadClass = roadClass,
-            speedKph = speedKph,
-            geometry = shapedRoadGeometry(fromPosition, toPosition)
+            fromNodeId = if (reverse) spec.to else spec.from,
+            toNodeId = if (reverse) spec.from else spec.to,
+            distanceMeters = geometry.windowed(2).sumOf { calculateDistanceMeters(it[0], it[1]) },
+            roadName = spec.roadName,
+            roadClass = spec.roadClass,
+            speedKph = spec.speedKph,
+            geometry = geometry
         )
     }
 }
@@ -557,7 +630,8 @@ private data class EdgeSpec(
     val to: Long,
     val roadName: String,
     val roadClass: RoadClass,
-    val speedKph: Int
+    val speedKph: Int,
+    val geometry: List<GeoPosition>
 )
 
 private fun expandShortcut(edge: RoadEdge, network: RoadNetwork): List<RoadEdge> {
@@ -579,7 +653,7 @@ private fun List<GeoPosition>.removeNearDuplicates(): List<GeoPosition> =
         if (acc.lastOrNull()?.isNear(point) == true) acc else acc + point
     }
 
-private fun densify(points: List<GeoPosition>, steps: Int = 5): List<GeoPosition> =
+private fun densify(points: List<GeoPosition>, steps: Int = 18): List<GeoPosition> =
     points.windowed(2).flatMapIndexed { index, pair ->
         val interpolated = (0..steps).map { step ->
             val t = step.toDouble() / steps.toDouble()
@@ -591,17 +665,8 @@ private fun densify(points: List<GeoPosition>, steps: Int = 5): List<GeoPosition
         if (index == 0) interpolated else interpolated.drop(1)
     }.ifEmpty { points }
 
-private fun shapedRoadGeometry(from: GeoPosition, to: GeoPosition): List<GeoPosition> {
-    val midLat = (from.latitude + to.latitude) / 2.0
-    val midLon = (from.longitude + to.longitude) / 2.0
-    val latOffset = (to.longitude - from.longitude) * 0.08
-    val lonOffset = -(to.latitude - from.latitude) * 0.08
-    return listOf(
-        from,
-        GeoPosition(midLat + latOffset, midLon + lonOffset),
-        to
-    )
-}
+private fun road(vararg points: Pair<Double, Double>): List<GeoPosition> =
+    points.map { (latitude, longitude) -> GeoPosition(latitude, longitude) }
 
 private fun classifyTurn(previousBearing: Double, currentBearing: Double): TurnType {
     val delta = normalizeBearingDelta(currentBearing - previousBearing)
@@ -651,3 +716,4 @@ private fun calculateDistanceMeters(p1: GeoPosition, p2: GeoPosition): Double {
 }
 
 private const val EARTH_RADIUS_METERS = 6_371_000.0
+private const val LOCAL_ACCESS_CONNECTOR_LIMIT_METERS = 120.0

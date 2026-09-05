@@ -8,14 +8,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Route
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
 import com.navpilot.core.ui.theme.*
 import com.navpilot.domain.model.Trip
 import com.navpilot.presentation.components.Card
@@ -30,16 +33,93 @@ fun TripsScreen(onTrip: () -> Unit) {
         Trip("Phoenix Marketcity", "Aug 26", "5:30 PM", "14 km", "36 min"),
         Trip("Indiranagar", "Aug 24", "7:55 PM", "9 km", "24 min")
     )
-    LazyColumn(Modifier.fillMaxSize().background(Bg), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { Column(Modifier.padding(horizontal = 20.dp, vertical = 22.dp)) { Text("Your trips", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, color = Ink); Text("148 km this week", fontSize = 14.sp, color = Ink2, modifier = Modifier.padding(top = 2.dp)) } }
+    
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Bg)
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(bottom = 32.dp)
+    ) {
+        item {
+            Column(Modifier.padding(horizontal = 24.dp, vertical = 24.dp)) {
+                Text(
+                    text = "Your trips",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Ink
+                )
+                Text(
+                    text = "148 km driven this week",
+                    fontSize = 15.sp,
+                    color = Ink2,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+        
         items(trips.size) { index ->
             val trip = trips[index]
-            Card(Modifier.padding(horizontal = 20.dp, vertical = 6.dp).clickable { onTrip() }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconCircle(Icons.Default.DirectionsCar, Brand, 44, Brand.copy(.1f))
-                    Column(Modifier.weight(1f).padding(start = 14.dp)) { Text(trip.destination, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Ink); Text("${trip.date} · ${trip.time}", fontSize = 13.sp, color = Ink2) }
-                    Column(horizontalAlignment = Alignment.End) { Text(trip.distance, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink); Text(trip.duration, fontSize = 12.sp, color = Ink3) }
-                    Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp).padding(start = 2.dp), Ink3)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { onTrip() },
+                color = Surface,
+                tonalElevation = 1.dp,
+                shadowElevation = 2.dp,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconCircle(
+                        icon = Icons.Default.Route,
+                        tint = Brand,
+                        size = 46,
+                        bg = Brand.copy(alpha = 0.08f)
+                    )
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 16.dp)
+                    ) {
+                        Text(
+                            text = trip.destination,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Ink
+                        )
+                        Text(
+                            text = "${trip.date} · ${trip.time}",
+                            fontSize = 13.sp,
+                            color = Ink2
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = trip.distance,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Ink
+                        )
+                        Text(
+                            text = trip.duration,
+                            fontSize = 12.sp,
+                            color = Ink3,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(18.dp),
+                        tint = Ink3
+                    )
                 }
             }
         }

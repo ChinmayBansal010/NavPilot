@@ -34,6 +34,12 @@ enum class RouteCostMode {
     SHORTEST
 }
 
+enum class RouteDataSource {
+    ONLINE_OSM,
+    OFFLINE_IMPORTED,
+    OFFLINE_BUNDLED
+}
+
 data class RoutingProfile(
     val costMode: RouteCostMode = RouteCostMode.FASTEST,
     val avoidMotorways: Boolean = false,
@@ -141,5 +147,6 @@ data class Route(
     val segments: List<RouteSegment>,
     val orderedCoordinates: List<GeoPosition>,
     val steps: List<RouteStep> = emptyList(),
-    val profile: RoutingProfile = RoutingProfile()
+    val profile: RoutingProfile = RoutingProfile(),
+    val dataSource: RouteDataSource = RouteDataSource.OFFLINE_BUNDLED
 )

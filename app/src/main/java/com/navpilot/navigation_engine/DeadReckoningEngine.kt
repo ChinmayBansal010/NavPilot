@@ -5,8 +5,10 @@ import com.navpilot.domain.model.GnssAvailability
 import com.navpilot.domain.model.ImuFrame
 import com.navpilot.domain.model.NavigationEstimate
 import com.navpilot.domain.model.OrientationState
+import com.navpilot.domain.model.PositionEstimateSource
 import com.navpilot.domain.model.Velocity
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -16,6 +18,8 @@ import kotlin.math.sin
 class DeadReckoningEngine {
     private var lastEstimate: NavigationEstimate? = null
     private var lastTimestampNanos: Long? = null
+    private var longitudinalAccelerationBias = 0f
+    private var yawRateBias = 0f
 
     fun update(
         frame: ImuFrame,
@@ -34,12 +38,14 @@ class DeadReckoningEngine {
         }
 
         if (gnssAvailability != GnssAvailability.LOST) {
+            updateBias(latestKnownVelocity, orientation, frame)
             val assisted = NavigationEstimate(
                 position = latestKnownPosition,
                 velocity = latestKnownVelocity,
                 headingDegrees = latestKnownVelocity.bearingDegrees ?: orientation.yawDegrees,
                 confidence = if (gnssAvailability == GnssAvailability.AVAILABLE) 0.95f else 0.7f,
-                timestampMillis = latestKnownPosition.timestampMillis
+                timestampMillis = latestKnownPosition.timestampMillis,
+                uncertaintyMeters = latestKnownPosition.horizontalAccuracyMeters ?: 18f
             )
             lastEstimate = assisted
             lastTimestampNanos = frame.timestampNanos.takeIf { it > 0L }
@@ -55,10 +61,19 @@ class DeadReckoningEngine {
         )
 
         val deltaSeconds = calculateDeltaSeconds(frame.timestampNanos)
-        val accelerationMetersPerSecond = orientation.vehicleAccelerationY.coerceIn(-4f, 4f)
+        val accelerationMetersPerSecond = (orientation.vehicleAccelerationY - longitudinalAccelerationBias)
+            .coerceIn(-4f, 4f)
         val previousSpeed = previous.velocity.speedMetersPerSecond
-        val speed = max(0f, previousSpeed + accelerationMetersPerSecond * deltaSeconds)
-        val heading = latestKnownVelocity.bearingDegrees ?: previous.headingDegrees ?: orientation.yawDegrees
+        val stationary = previousSpeed < 0.45f && abs(accelerationMetersPerSecond) < 0.18f
+        val speed = if (stationary) {
+            0f
+        } else {
+            max(0f, previousSpeed + accelerationMetersPerSecond * deltaSeconds)
+        }
+        val yawDelta = ((frame.gyroscope?.z ?: 0f) - yawRateBias) * deltaSeconds * 180f / PI.toFloat()
+        val heading = latestKnownVelocity.bearingDegrees
+            ?: previous.headingDegrees?.let { normalizeDegrees(it + yawDelta) }
+            ?: orientation.yawDegrees
         val distanceMeters = ((previousSpeed + speed) / 2f) * deltaSeconds
         val moved = previous.position?.move(distanceMeters, heading)
 
@@ -67,10 +82,23 @@ class DeadReckoningEngine {
             velocity = Velocity(speedMetersPerSecond = speed, bearingDegrees = heading),
             headingDegrees = heading,
             confidence = (previous.confidence - deltaSeconds * 0.015f).coerceIn(0.15f, 0.75f),
-            timestampMillis = System.currentTimeMillis()
+            timestampMillis = System.currentTimeMillis(),
+            uncertaintyMeters = ((previous.uncertaintyMeters + distanceMeters * 0.08f + deltaSeconds * 0.6f)
+                .coerceIn(4f, 90f)),
+            source = PositionEstimateSource.IMU
         )
         lastEstimate = estimate
         return estimate
+    }
+
+    private fun updateBias(velocity: Velocity, orientation: OrientationState, frame: ImuFrame) {
+        if (velocity.speedMetersPerSecond < 0.5f) {
+            longitudinalAccelerationBias = longitudinalAccelerationBias * 0.985f +
+                orientation.vehicleAccelerationY * 0.015f
+            frame.gyroscope?.let {
+                yawRateBias = yawRateBias * 0.985f + it.z * 0.015f
+            }
+        }
     }
 
     private fun calculateDeltaSeconds(timestampNanos: Long): Float {
@@ -82,6 +110,9 @@ class DeadReckoningEngine {
         return ((timestampNanos - previous) / 1_000_000_000f).coerceIn(0.001f, 1f)
     }
 }
+
+private fun normalizeDegrees(value: Float): Float =
+    ((value % 360f) + 360f) % 360f
 
 private fun GeoPosition.move(distanceMeters: Float, bearingDegrees: Float): GeoPosition {
     val angularDistance = distanceMeters / EARTH_RADIUS_METERS

@@ -1,6 +1,6 @@
 package com.navpilot.data.repository
 
-import com.navpilot.data.routing.OfflineRoutingEngine
+import com.navpilot.data.routing.HybridRoutingEngine
 import com.navpilot.domain.model.GeoPosition
 import com.navpilot.domain.model.GnssAvailability
 import com.navpilot.domain.model.GnssSample
@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 class NavigationRepository(
     private val locationRepository: LocationRepository,
     private val sensorRepository: SensorManagerRepository,
-    private val routingEngine: RoutingEngine = OfflineRoutingEngine()
+    private val routingEngine: RoutingEngine = HybridRoutingEngine()
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

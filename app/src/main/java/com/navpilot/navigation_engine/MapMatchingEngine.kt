@@ -1,6 +1,6 @@
 package com.navpilot.navigation_engine
 
-import com.navpilot.data.routing.DemoDelhiRoadNetwork
+import com.navpilot.data.routing.BundledDelhiNcrRoadNetwork
 import com.navpilot.domain.model.GeoPosition
 import com.navpilot.domain.model.MapMatchedPosition
 import com.navpilot.domain.model.RoadCandidate
@@ -77,7 +77,7 @@ class TransitionProbability(
 }
 
 class HmmViterbiMapMatcher(
-    private val roadNetwork: RoadNetwork = DemoDelhiRoadNetwork.create(),
+    private val roadNetwork: RoadNetwork = BundledDelhiNcrRoadNetwork.create(),
     private val emissionProbability: EmissionProbability = EmissionProbability(),
     private val transitionProbability: TransitionProbability = TransitionProbability()
 ) : MapMatcher {

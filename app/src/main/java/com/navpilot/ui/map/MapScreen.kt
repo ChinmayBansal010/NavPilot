@@ -106,21 +106,41 @@ fun NavPilotMap(
                         destMarker.setEnabled(false)
                     }
 
-                    // Route Polyline
-                    var polyline = mapView.overlays.filterIsInstance<Polyline>().firstOrNull()
-                    if (polyline == null) {
-                        polyline = Polyline(mapView).apply {
-                            outlinePaint.color = android.graphics.Color.parseColor("#3B82F6")
+                    var routeCasing = mapView.overlays.filterIsInstance<Polyline>()
+                        .firstOrNull { it.title == "Route casing" }
+                    if (routeCasing == null) {
+                        routeCasing = Polyline(mapView).apply {
+                            title = "Route casing"
+                            outlinePaint.color = android.graphics.Color.WHITE
+                            outlinePaint.strokeWidth = 22f
+                            outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                            outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                            mapView.overlays.add(0, this)
+                        }
+                    }
+
+                    var routeLine = mapView.overlays.filterIsInstance<Polyline>()
+                        .firstOrNull { it.title == "Active route" }
+                    if (routeLine == null) {
+                        routeLine = Polyline(mapView).apply {
+                            title = "Active route"
+                            outlinePaint.color = android.graphics.Color.parseColor("#2563EB")
                             outlinePaint.strokeWidth = 14f
-                            mapView.overlays.add(this)
+                            outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                            outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                            mapView.overlays.add(1, this)
                         }
                     }
 
                     if (routePoints.isNotEmpty()) {
-                        polyline.setPoints(routePoints.map { GeoPoint(it.latitude, it.longitude) })
-                        polyline.setEnabled(true)
+                        val geoPoints = routePoints.map { GeoPoint(it.latitude, it.longitude) }
+                        routeCasing.setPoints(geoPoints)
+                        routeLine.setPoints(geoPoints)
+                        routeCasing.setEnabled(true)
+                        routeLine.setEnabled(true)
                     } else {
-                        polyline.setEnabled(false)
+                        routeCasing.setEnabled(false)
+                        routeLine.setEnabled(false)
                     }
 
                     mapView.invalidate()

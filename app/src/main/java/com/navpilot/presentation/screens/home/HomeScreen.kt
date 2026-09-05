@@ -4,14 +4,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,74 +28,302 @@ import com.navpilot.presentation.components.SectionTitle
 @Composable
 fun HomeScreen(onNavigate: (String) -> Unit) {
     val places = listOf(
-        SavedPlace("Home", "Indiranagar", "18 min"),
-        SavedPlace("Work", "Whitefield Tech Park", "34 min"),
-        SavedPlace("Gym", "Cult.fit, Koramangala", "12 min")
+        SavedPlace("Home", "Sector 15, Faridabad", "18 min"),
+        SavedPlace("Work", "DLF Cyber City, Gurugram", "42 min"),
+        SavedPlace("Gym", "Anytime Fitness, NIT", "12 min")
     )
-    LazyColumn(Modifier.fillMaxSize().background(Bg), contentPadding = PaddingValues(bottom = 24.dp)) {
+    
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Bg)
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(bottom = 32.dp)
+    ) {
         item {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Good afternoon,", fontSize = 14.sp, color = Ink2, fontWeight = FontWeight.Medium)
-                    Text("Aarav", fontSize = 25.sp, color = Ink, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        text = "Good afternoon,",
+                        fontSize = 15.sp,
+                        color = Ink2,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Chinmay",
+                        fontSize = 28.sp,
+                        color = Ink,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.5).sp
+                    )
                 }
-                IconCircle(Icons.Default.Person, Brand, 44, Brand.copy(.1f))
+                Surface(
+                    onClick = { /* Profile */ },
+                    shape = RoundedCornerShape(16.dp),
+                    color = Brand.copy(alpha = 0.1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile",
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .size(24.dp),
+                        tint = Brand
+                    )
+                }
             }
         }
+        
         item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).background(Surface, RoundedCornerShape(16.dp)).clickable { onNavigate("navigate") }.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Search, null, Modifier.size(21.dp), Ink3)
-                Text("Where to?", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Ink3, modifier = Modifier.padding(start = 12.dp))
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { onNavigate("navigate") },
+                color = Surface,
+                tonalElevation = 2.dp,
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = Brand
+                    )
+                    Text(
+                        text = "Where to?",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Ink3,
+                        modifier = Modifier.padding(start = 14.dp)
+                    )
+                }
             }
         }
-        item { Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) { SectionTitle("Saved places", "Edit") } }
+        
         item {
-            Card(Modifier.padding(horizontal = 20.dp)) {
-                places.forEachIndexed { index, p ->
-                    Row(Modifier.fillMaxWidth().clickable { onNavigate("navigate") }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconCircle(when (p.label) { "Home" -> Icons.Default.Home; "Work" -> Icons.Default.Work; else -> Icons.Default.Star }, Ink2, 40)
-                        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                            Text(p.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Ink)
-                            Text(p.detail, fontSize = 13.sp, color = Ink2)
+            Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 32.dp)) {
+                SectionTitle("Saved places", "View all")
+                Card {
+                    places.forEachIndexed { index, p ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNavigate("navigate") }
+                                .padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconCircle(
+                                icon = when (p.label) {
+                                    "Home" -> Icons.Default.Home
+                                    "Work" -> Icons.Default.Work
+                                    else -> Icons.Default.Star
+                                },
+                                tint = if (p.label == "Home") Brand else if (p.label == "Work") Warning else Success,
+                                size = 42,
+                                bg = (if (p.label == "Home") Brand else if (p.label == "Work") Warning else Success).copy(alpha = 0.1f)
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 16.dp)
+                            ) {
+                                Text(
+                                    text = p.label,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Ink
+                                )
+                                Text(
+                                    text = p.detail,
+                                    fontSize = 13.sp,
+                                    color = Ink2
+                                )
+                            }
+                            Text(
+                                text = p.time,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Brand
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .size(18.dp),
+                                tint = Ink3
+                            )
                         }
-                        Text(p.time, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Ink3)
-                        Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp), Ink3)
+                        if (index != places.lastIndex) {
+                            androidx.compose.material3.HorizontalDivider(
+                                color = Line.copy(alpha = 0.5f),
+                                thickness = 0.8.dp
+                            )
+                        }
                     }
-                    if (index != places.lastIndex) androidx.compose.material3.HorizontalDivider(color = Line)
                 }
             }
         }
-        item { Column(Modifier.padding(horizontal = 20.dp, vertical = 22.dp)) { SectionTitle("This week") } }
+        
         item {
-            Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                listOf("148" to "km driven", "9" to "trips", "3h 20m" to "on the road").forEach { stat ->
-                    Card(Modifier.weight(1f)) { Text(stat.first, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Ink); Text(stat.second, fontSize = 12.sp, color = Ink2, modifier = Modifier.padding(top = 2.dp)) }
+            Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 32.dp)) {
+                SectionTitle("This week")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(Modifier.weight(1f), "148", "km driven", Brand)
+                    StatCard(Modifier.weight(1f), "9", "trips", Success)
+                    StatCard(Modifier.weight(1f), "3h 20m", "time", Warning)
                 }
             }
         }
+        
         item {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(Modifier.clickable { onNavigate("navigate") }) {
+            Column(
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Card(
+                    modifier = Modifier.clickable { onNavigate("navigate") }
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconCircle(Icons.Default.Explore, Brand, 44, Brand.copy(.1f))
-                        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                            Text("IDR Engine", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
-                            Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(Success, androidx.compose.foundation.shape.CircleShape)); Text("All systems ready", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Success, modifier = Modifier.padding(start = 6.dp)) }
+                        IconCircle(Icons.Default.Explore, Brand, 48, Brand.copy(0.1f))
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 16.dp)
+                        ) {
+                            Text(
+                                text = "Navigation Engine",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Ink
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Success)
+                                )
+                                Text(
+                                    text = "Positioning optimized",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Success,
+                                    modifier = Modifier.padding(start = 6.dp)
+                                )
+                            }
                         }
                         Icon(Icons.Default.ChevronRight, null, Modifier.size(20.dp), Ink3)
                     }
-                    Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        listOf("IMU Calibration", "AI Speed Filter", "Kalman Fusion", "Map Matching").forEach { label ->
-                            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Check, null, Modifier.size(14.dp), Success); Text(label, fontSize = 11.sp, color = Ink2, modifier = Modifier.padding(start = 5.dp)) }
-                        }
+                    
+                    Row(
+                        modifier = Modifier.padding(top = 18.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        EngineTag("IMU", true)
+                        EngineTag("AI", true)
+                        EngineTag("GPS", true)
+                        EngineTag("Map", true)
                     }
                 }
-                Row(Modifier.fillMaxWidth().background(Surface, RoundedCornerShape(18.dp)).clickable { onNavigate("offline") }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconCircle(Icons.Default.Download, Ink2, 36)
-                    Column(Modifier.weight(1f).padding(start = 12.dp)) { Text("Offline maps", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Ink); Text("280 MB saved · 2 regions", fontSize = 12.sp, color = Ink2) }
-                    Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp), Ink3)
+                
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { onNavigate("offline") },
+                    color = Surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconCircle(Icons.Default.Download, Ink, 40, Bg)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 14.dp)
+                        ) {
+                            Text(
+                                text = "Offline maps",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Ink
+                            )
+                            Text(
+                                text = "Haryana · 125 MB downloaded",
+                                fontSize = 12.sp,
+                                color = Ink2
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp), Ink3)
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StatCard(modifier: Modifier, value: String, label: String, color: Color) {
+    Card(modifier = modifier) {
+        Column {
+            Text(
+                text = value,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Ink,
+                letterSpacing = (-0.5).sp
+            )
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EngineTag(label: String, active: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = (if (active) Success else Line).copy(alpha = 0.1f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(if (active) Success else Ink3)
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (active) Success else Ink3,
+                modifier = Modifier.padding(start = 5.dp)
+            )
         }
     }
 }

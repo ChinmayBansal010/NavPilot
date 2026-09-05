@@ -1,11 +1,14 @@
 package com.navpilot
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,72 +60,81 @@ fun NavPilotApp() {
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                when (screen) {
-                    AppScreen.Splash -> {
-                        SplashScreen {
-                            screen = AppScreen.Onboarding
+                AnimatedContent(
+                    targetState = screen,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(400)) togetherWith 
+                        fadeOut(animationSpec = tween(400))
+                    },
+                    label = "screenTransition"
+                ) { currentScreen ->
+                    when (currentScreen) {
+                        AppScreen.Splash -> {
+                            SplashScreen {
+                                screen = AppScreen.Onboarding
+                            }
                         }
-                    }
 
-                    AppScreen.Onboarding -> {
-                        OnboardingScreen {
-                            screen = AppScreen.Setup
+                        AppScreen.Onboarding -> {
+                            OnboardingScreen {
+                                screen = AppScreen.Setup
+                            }
                         }
-                    }
 
-                    AppScreen.Setup -> {
-                        SetupScreen {
-                            selectedTab = 0
-                            screen = AppScreen.Home
+                        AppScreen.Setup -> {
+                            SetupScreen {
+                                selectedTab = 0
+                                screen = AppScreen.Home
+                            }
                         }
-                    }
 
-                    AppScreen.Home -> {
-                        HomeScreen { destination ->
-                            when (destination) {
-                                "offline" -> {
-                                    screen = AppScreen.Offline
-                                }
+                        AppScreen.Home -> {
+                            HomeScreen { destination ->
+                                when (destination) {
+                                    "offline" -> {
+                                        screen = AppScreen.Offline
+                                    }
 
-                                "navigate" -> {
-                                    selectedTab = 1
-                                    screen = AppScreen.Navigate
-                                }
+                                    "navigate" -> {
+                                        selectedTab = 1
+                                        screen = AppScreen.Navigate
+                                    }
 
-                                else -> {
-                                    selectedTab = 1
-                                    screen = AppScreen.Navigate
+                                    else -> {
+                                        selectedTab = 1
+                                        screen = AppScreen.Navigate
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    AppScreen.Navigate -> {
-                        NavigateScreen()
-                    }
-
-                    AppScreen.Trips -> {
-                        TripsScreen {
-                            screen = AppScreen.TripDetail
+                        AppScreen.Navigate -> {
+                            NavigateScreen()
                         }
-                    }
 
-                    AppScreen.TripDetail -> {
-                        TripDetailScreen {
-                            screen = AppScreen.Trips
+                        AppScreen.Trips -> {
+                            TripsScreen {
+                                screen = AppScreen.TripDetail
+                            }
                         }
-                    }
 
-                    AppScreen.Offline -> {
-                        OfflineMapsScreen {
-                            selectedTab = 3
-                            screen = AppScreen.Settings
+                        AppScreen.TripDetail -> {
+                            TripDetailScreen {
+                                screen = AppScreen.Trips
+                            }
                         }
-                    }
 
-                    AppScreen.Settings -> {
-                        SettingsScreen {
-                            screen = AppScreen.Offline
+                        AppScreen.Offline -> {
+                            OfflineMapsScreen {
+                                selectedTab = 3
+                                screen = AppScreen.Settings
+                            }
+                        }
+
+                        AppScreen.Settings -> {
+                            SettingsScreen {
+                                screen = AppScreen.Offline
+                            }
                         }
                     }
                 }
@@ -140,7 +152,8 @@ fun NavPilotApp() {
                             2 -> AppScreen.Trips
                             else -> AppScreen.Settings
                         }
-                    }
+                    },
+                    modifier = Modifier.navigationBarsPadding()
                 )
 
                 Spacer(
